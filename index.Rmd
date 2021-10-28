@@ -19,72 +19,292 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+### Raquel Mejia | rm57578
 
 #### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.
+__Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.__
 
 ```{R}
 # read your datasets in here, e.g., with read_csv()
+library(tidyverse)
+library(usmap)
+medincome2019 <- read_csv("/stor/home/rm57578/project1/datasets/medincome2019.csv")
+prelimivf2019 <- read_csv("/stor/home/rm57578/project1/datasets/prelimivf2019.csv")
 
 ```
 
 #### Tidying: Reshaping
 
-If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
-
+If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. **Note here if you are going to do this.**
+__need to wrangle data before I can join, should I add wrangling initial dataset?__
 ```{R}
 # your tidying code (if applicable; can also wait until wrangling section)
+
+
+
 ```
 
     
 #### Joining/Merging
+*Join your datasets into one using a `dplyr` join function on an ID variable (or ID variables) common to both*
+
+*Discuss the process in words, including why you chose the join you did*
+
+*At a minimum, you should calculate (and your discussion should mention) the number of...*
+
+    (1) total observations/rows in each dataset
+    (2) unique IDs in each dataset
+    (3) IDs that appear in one dataset but not the other (and which those are)
+    (4) IDs the datasets have common 
+    
+*Discuss the size of the joined dataset and how it relates to the size of the original datasets*
+
+*In the joined dataset, note how many observations/rows were dropped, and any potential problems with this*
 
 ```{R}
-# your joining code
+medincome2019 %>% mutate(location = str_replace(Location, ".+", toupper)) %>% select(location, "Median Annual Household Income") -> joinmedincome2019
+```
 
-# your joining code
+(1) total observations/rows in each dataset:
+```{R}
+nrow(joinmedincome2019) #53 rows: median income of 50 states, USA median income, Puerto Rico median income, D.C. median income 
+nrow(prelimivf2019) #448 rows, 
+```
+
+(2) unique IDs in each dataset
+```{R}
+n_distinct(joinmedincome2019) #53 unique locations
+n_distinct(prelimivf2019) #448 unique clinics that reported IVF data to CDC in 2019 
+```
+
+(3) IDs that appear in one dataset but not the other (and which those are)
+```{R}
+anti_join(prelimivf2019, joinmedincome2019, by = c("CurrentClinicState" = "location")) %>% nrow() #all clinics in the 'prelimivf2019' dataset are located in the 'joinmedincome2019' dataset. 
+
+anti_join(joinmedincome2019, prelimivf2019, by = c("location" = "CurrentClinicState")) #Four locations in the 'joinmedincome2019' dataset are not present in the 'prelimivf2019' dataset. The following locations are not listed as the current location of a fertility clinic in the 'prelimivf2019' dataset: United States, Alaska, New Hampshire, and Wyoming. 
+```
+
+(4) IDs the datasets have common 
+```{R}
+semi_join(joinmedincome2019, prelimivf2019, by = c("location" = "CurrentClinicState")) %>% nrow() #49 IDs (locations) in common
+
+prelimivf2019 %>% distinct(CurrentClinicState) %>% semi_join(joinmedincome2019, by = c("CurrentClinicState" = "location")) %>% as.list #here is a list of all of the locations they have in common 
+```
+
+(5) Discuss the size of the joined dataset and how it relates to the size of the original datasets
+(6) In the joined dataset, note how many observations/rows were dropped, and any potential problems with this
+```{R}
+left_join(prelimivf2019, joinmedincome2019, by = c("CurrentClinicState" = "location")) -> ivfincome 
+ivfincome %>% nrow() 
+
+#left join was performed because only interested in median incomes in reference to the locations that had IVF data reported to the CDC in 2019. 
+#Thus, the number of rows in the merged dataset is the same as the number of rows in the 'prelimmivf2019' dataset (448 rows representing 448 unique clinics). 
+#As a result of this join, four locations from the 'joinmedincome2019' dataset were dropped, since United States, Alaska, New Hampshire, and Wyoming were not listed as the current location of a fertility clinic in the 'prelimivf2019' dataset. 
+#Dropping these rows is not problematic because they are not relevant to the analysis based on clinic location that will be performed below. 
 ```
 
 Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+==================================================================================================================================
 
 ####  Wrangling
 
-```{R}
-# your wrangling code
+Say which variables I'm focusing on (three numeric: TotNumCyclesAll, Median Annual Household Income, TransPGTAll, SARTmember)
 
-# your wrangling code
-
-# your wrangling code
+```{r}
+#clean state and income columns
+ivfincome %>% 
+  rename("state" = "CurrentClinicState") %>%
+  rename("medianincome" = "Median Annual Household Income" ) %>%
+  mutate(medianincome = str_replace_all(medianincome, "[$,]*[$,]*","")) %>%
+  mutate(medianincome = as.integer(medianincome)) %>%
+  mutate(ND_NumTrans1 = na_if(ND_NumTrans1, "*")) %>%
+  mutate(ND_NumTrans2 = na_if(ND_NumTrans2, "*")) %>%
+  mutate(ND_NumTrans3 = na_if(ND_NumTrans3, "*")) %>%
+  mutate(ND_NumTrans4 = na_if(ND_NumTrans4, "*")) %>%
+  mutate(Donor_NumTrans1 = na_if(Donor_NumTrans1, "*")) %>%
+  mutate(Donor_NumTrans2 = na_if(Donor_NumTrans2, "*")) %>%
+  mutate(Donor_NumTrans3 = na_if(Donor_NumTrans3, "*")) %>%
+  mutate(Donor_NumTrans4 = na_if(Donor_NumTrans4, "*")) %>%
+  mutate(ND_NumTrans1 = str_replace_all(ND_NumTrans1, ",", "")) %>%
+  mutate(ND_NumTrans2 = str_replace_all(ND_NumTrans2, ",", "")) %>%
+  mutate(ND_NumTrans3 = str_replace_all(ND_NumTrans3, ",", "")) %>%
+  mutate(ND_NumTrans4 = str_replace_all(ND_NumTrans4, ",", "")) %>%
+  mutate(Donor_NumTrans1 = str_replace_all(Donor_NumTrans1, ",", "")) %>%
+  mutate(Donor_NumTrans2 = str_replace_all(Donor_NumTrans2, ",", "")) %>%
+  mutate(Donor_NumTrans3 = str_replace_all(Donor_NumTrans3, ",", "")) %>%
+  mutate(Donor_NumTrans4 = str_replace_all(Donor_NumTrans4, ",", "")) %>%
+  mutate(ND_NumTrans1 = as.integer(ND_NumTrans1)) %>%
+  mutate(ND_NumTrans2 = as.integer(ND_NumTrans2)) %>%
+  mutate(ND_NumTrans3 = as.integer(ND_NumTrans3)) %>%
+  mutate(ND_NumTrans4 = as.integer(ND_NumTrans4)) %>%
+  mutate(Donor_NumTrans1 = as.integer(Donor_NumTrans1)) %>%
+  mutate(Donor_NumTrans2 = as.integer(Donor_NumTrans2)) %>%
+  mutate(Donor_NumTrans3 = as.integer(Donor_NumTrans3)) %>%
+  mutate(Donor_NumTrans4 = as.integer(Donor_NumTrans4)) %>%
+  mutate(TransPGTAll = na_if(TransPGTAll, "*")) %>%
+  mutate(TransPGTAll = str_replace_all(TransPGTAll, "%", "")) %>%
+  mutate(TransPGTAll = as.numeric(TransPGTAll))-> ivfincome
 ```
 
+Summary statistics of clinic IVF cycles grouped by state (sum, median, mean, sd)
+```{R, FINISHED1}
+ivfincome %>%
+  group_by(state) %>%
+  summarise("totalivfcycles" = sum(TotNumCyclesAll), 
+            "medianivfcycles" = median(TotNumCyclesAll), 
+            "meanivfcycles" = mean(TotNumCyclesAll), 
+            "sdivfcycles" = sd(TotNumCyclesAll))
+```
+
+If applicable, at least 1 of these should group by two categorical variables
+```{R, FINISHED2}
+ivfincome %>%   
+  group_by(state, SARTmember) %>% summarise(countsclinicSARTmember = n()) #number of clinics that are and aren't SART members by state
+```
+
+Used pivot_wider to tidy summary data (counts of clinics in each state, categorized by below/above US median income)
+```{R, FINISHED3}
+ivfincome %>% 
+  mutate("aboveUSmedian" = ifelse(medianincome>65712, "Above Median U.S. Income", "Below Median U.S. Income")) %>%
+  group_by(state, aboveUSmedian) %>% 
+  summarise("countaboveUSmedian" = n()) %>%
+  pivot_wider(names_from="aboveUSmedian",values_from="countaboveUSmedian")
+
+```
+
+
+```{R, FINISHED4}
+ivfincome %>%   
+  filter(medianincome > 65712) %>% nrow() #231 clinics are located in states with a median income higher than the median income of the U.S.: $65,712. 
+
+ivfincome %>%   
+  filter(medianincome > 65712) %>% summarise(meantotalcycles = mean(TotNumCyclesAll)) #Clinics in a state with a median income higher than the median income of the U.S. performed an average of 937 IVF cycles in 2019. 
+
+ivfincome %>%   
+  filter(medianincome < 65712) %>% nrow()#217 clinics are located in states with a median income lower than the median income of the U.S.: $65,712. 
+
+ivfincome %>%   
+  filter(medianincome < 65712) %>% summarise(meantotalcycles = mean(TotNumCyclesAll)) #Clinics in a state with a median income higher than the median income of the U.S. performed an average of 526 IVF cycles in 2019. 
+```
 Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
 
-
+========================================================================================================================================
 #### Visualizing
 
-```{R}
-# your plot 1
+```{R, FINISHED5}
+ivfincome %>%
+  group_by(state) %>%
+  mutate("medianivfcycles" = median(TotNumCyclesAll)) %>% 
+  
+  ggplot(aes(x=medianincome, y=medianivfcycles)) + 
+  geom_point(shape = 1, size=3.5) + 
+  geom_smooth(method = "lm", col="skyblue") +
+  theme_minimal() +
+  theme(plot.title = element_text(size=17), 
+        axis.title.x = element_text(margin=margin(15,0,0,0)), 
+        axis.title.y = element_text(margin=margin(0,12,0,0)),)+
+  labs(title="Effect of Income on Number of IVF Cycles", 
+       subtitle="Plot represents the median annual household income of a state* and \nthe median number of IVF cycles that clinics in that state performed in 2019.", 
+       caption = "*D.C. and Puerto Rico are included") +
+  scale_x_continuous(name = "Median Annual Household Income of State", 
+                     labels=scales::dollar_format(), 
+                     breaks = seq(20000,100000, by=10000)) +
+  scale_y_continuous(name = "Median Number of IVF Cycles", 
+                     labels=scales::comma, 
+                     breaks = seq(0, 1200, by=100))
 ```
-
-Your discussion of plot 1
-
+^^Your discussion of plot 1
 ```{R}
-# your plot 2
+ivfincome %>% 
+  mutate("aboveUSmedian" = ifelse(medianincome>65712, "Above Median U.S. Income", "Below Median U.S. Income")) %>%
+  group_by(state) %>%
+  mutate("meanivfcycles" = mean(TotNumCyclesAll)) -> medianUSincome
+
+
+medianUSincome %>% 
+  ggplot(aes(x = aboveUSmedian, y = meanivfcycles, fill=aboveUSmedian))+
+  geom_bar(stat="summary",fun=mean, width=0.6)+
+  geom_errorbar(stat="summary", fun.data=mean_se, width = 0.3) +
+  theme_minimal() +
+  theme(plot.title = element_text(size=15), 
+        axis.title.x = element_text(margin=margin(15,0,0,0)), 
+        axis.title.y = element_text(margin=margin(0,12,0,0)),
+        legend.position = "none") +
+  labs(title="IVF Cycles Relative to Median U.S. Income", 
+       subtitle="Plot represents the average number of IVF cycles performed by clinics in states* that are \nabove and below the median U.S. income in 2019 ($65,712).", 
+       caption = "*D.C. and Puerto Rico are included") + 
+  xlab(" ") +
+  scale_y_continuous(name = "Average Number of IVF Cycles", 
+                     labels=scales::comma, 
+                     breaks = seq(0, 1000, by=100)) +
+  scale_fill_manual(values=c("#869E81", "#BD5E4B"))
+
+
+```
+^^Your discussion of plot 2
+
+
+Median or mean? What am i trying to show?
+```{R}
+ivfincome %>%
+ group_by(state) %>%
+ mutate("medianivfcycles" = median(TotNumCyclesAll)) -> medivfincome  
+
+ plot_usmap(data = medivfincome, values = "medianivfcycles", regions = "states", col="white") +
+   labs(title = "Median Number of IVF Cycles Across the U.S.", 
+        subtitle = "This map shows the median number of IVF cycles that clinics in that state performed in 2019.", 
+        caption="Alaska, New Hampshire, and Wyoming did not report any IVF cycles in 2019 (shown as grey).") +
+   scale_fill_continuous(low = "skyblue", high = "skyblue4", name = "Total IVF Cycles", label = scales::comma) + 
+   theme(legend.position = "right", plot.title = element_text(hjust = 0.5, size=15))
+
 ```
 
 Your discussion of plot 2
 
-```{R}
-# your plot 3
+
+For plot: total number of cycles per state with at least one PGT vs. median income 
+
+
+includes variable thats a function of other variable 
+```{R, FINISHED6}
+ivfincome %>% group_by(CurrentClinicName1) %>%
+  mutate("totaltransfers" = sum(Donor_NumTrans1, Donor_NumTrans2, Donor_NumTrans3, Donor_NumTrans4, ND_NumTrans1, ND_NumTrans2, ND_NumTrans3, ND_NumTrans4, na.rm=T)) %>% 
+  mutate("cyclesatleastonePGT" = (TransPGTAll/100)*totaltransfers) %>% 
+  group_by(state) %>% 
+  mutate("statecycPGT" = mean(cyclesatleastonePGT, na.rm=T))%>% 
+  
+  ggplot(aes(x=medianincome, y=statecycPGT)) + 
+  geom_point(shape = 1, size=3.5) + 
+  geom_smooth(method = "lm") +
+  theme_minimal() +
+  theme(plot.title = element_text(size=15), 
+        axis.title.x = element_text(margin=margin(15,0,0,0)), 
+        axis.title.y = element_text(margin=margin(0,12,0,0)),)+
+  labs(title="Effect of Income on Genetic Testing", 
+       subtitle="Plot represents the median annual household income of a state* and \nthe average number of transfers of at least one embryo with genetic testing \nthat clinics in that state performed in 2019.", 
+       caption = "*D.C. and Puerto Rico are included") +
+  scale_x_continuous(name = "Median Annual Household Income of State", 
+                     labels=scales::dollar_format(), 
+                     breaks = seq(20000,100000, by=10000)) +
+  scale_y_continuous(name = "Average Number of Transfers \nwith at least one PGT Embryo", 
+                     labels=scales::comma, 
+                     breaks = seq(0, 500, by=100))
 ```
 
 Your discussion of plot 3
 
+old vs young patients vs income
+```{R}
+
+
+```
+Your discussion of plot 4
+
 #### Concluding Remarks
 
 If any!
+wealth disparity! infertility should be covered under insurance! 
 
 
 
