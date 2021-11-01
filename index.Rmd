@@ -428,7 +428,11 @@ ivfincome %>%
 grid.arrange(map1, map2, ncol=1)
 ```
 <br>
-Figure 4 allows for the comparison of a state's average number of treatment cycles and whether or not the state is above or below the median U.S. income of 2019 ($65,712). States like California, Oregon, and Utah are above the U.S. median income and correspondingly are above the average number of treatment cycles for states below the U.S. median income. Some states like Florida and Texas however are below the U.S. median income, but are above the average number of treatment cycles for states below the U.S. median income. 
+Figure 4 allows for the comparison of a state's average number of treatment cycles and whether or not the state is above or below the median U.S. income of 2019 ($65,712).  
+
+The top map has a threshold colored in white at 526 cycles, which is the average number of treatment cycles for states below the U.S. median income. States in the top map that are red are below this threshold, while states that are green are above this threshold.  
+
+States like California, Oregon, and Utah are above the U.S. median income and correspondingly are above the average number of treatment cycles for states below the U.S. median income. Some states like Florida and Texas however are below the U.S. median income, but are above the average number of treatment cycles for states below the U.S. median income. 
 <br>
 <br>
 
