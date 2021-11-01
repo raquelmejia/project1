@@ -21,7 +21,9 @@ tidy=FALSE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 Introduction
 =============
 <br>
-The purpose of this project was to apply data wrangling skills to two datasets with a shared identification variable, join these two datasets based on their shared identification variable, and then explore and visualize relationships within the joined dataset. 
+The purpose of this project was to apply data wrangling skills to two datasets with a shared identification variable, join these two datasets based on their shared identification variable, and then explore and visualize relationships within the joined dataset.  
+
+The purpose of this analysis was to examine wealth disparities across the U.S. and how these wealth disparities may influence accessibility to fertility treatments.
 <br>
 <br>
 I examined a [Preliminary Assisted Reproductive Technology (ART) Report from 2019](https://www.cdc.gov/art/artdata/index.html#preliminary) that was published by the Centers for Disease and Control and Prevention. This dataset contains information about fertility clinics in the U.S. that reported data on the treatment cycles that they performed in 2019, reasons for treatment, live birth and success rates, and miscellaneous clinic data, such as available treatment options and clinic location. 
