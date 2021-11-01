@@ -1,0 +1,430 @@
+---
+title: 'Project 1: Data Wrangling, Exploration, Visualization'
+author: "Raquel Mejia  |  rm57578"
+date: "SDS322E"
+output:
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+    theme: cosmo
+    highlight: textmate
+  pdf_document:
+    toc: no
+  word_document:
+    toc: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
+```
+<br>
+
+Introduction
+=============
+<br>
+The purpose of this project was to apply data wrangling skills to two datasets with a shared identification variable, join these two datasets based on their shared identification variable, and then explore and visualize relationships within the joined dataset. 
+<br>
+<br>
+I examined a [Preliminary Assisted Reproductive Technology (ART) Report from 2019](https://www.cdc.gov/art/artdata/index.html#preliminary) that was published by the Centers for Disease and Control and Prevention. This dataset contains information about fertility clinics in the U.S. that reported data on the treatment cycles that they performed in 2019, reasons for treatment, live birth and success rates, and miscellaneous clinic data, such as available treatment options/clinic location/whether or not the clinic is a member of the Society of American Reproductive Technology (SART). 
+<br>
+<br>
+The CDC describes ART as follows: *"ART includes all fertility treatments in which either eggs or embryos are handled.  The main type of ART is in vitro fertilization (IVF). IVF involves extracting a woman’s eggs, fertilizing the eggs in the laboratory, and then transferring the resulting embryos."*
+<br>
+<br>
+The variables analyzed from this dataset are:  
+
+  (1) Total number of treatment cycles of patients of all ages <br>
+  (2) Percent of embryo transfers involving at least one embryo with Pre-implantation Genetic Testing <br>
+  (3) Status of a clinic as a member of SART <br>
+
+<br>
+The second dataset that was examined was the [U.S. Median Annual Household Income in 2019](https://www.kff.org/other/state-indicator/median-annual-income/?currentTimeframe=0&sortModel=%7B%22colId%22:%22Location%22,%22sort%22:%22asc%22%7D#notes) gathered from the U.S. Census Bureau and downloaded from the Kaiser Family Foundation website. 
+<br>
+<br>
+The variable analyzed from this dataset includes:
+
+  (1) Median annual household income from 2019
+<br>
+```{R}
+library(tidyverse)
+library(kableExtra)
+library(knitr)
+library(usmap)
+library(ggpubr)
+library(gridExtra)
+
+medincome2019 <- read_csv("/stor/home/rm57578/project1/datasets/medincome2019.csv")
+prelimivf2019 <- read_csv("/stor/home/rm57578/project1/datasets/prelimivf2019.csv")
+
+```
+<br>
+
+Joining/Merging
+====================
+<br>
+The 2019 Median Annual Household Income dataset, `medincome2019`, has 53 total and unique rows/observations: the median incomes of all 50 U.S. states, District of Columbia, Puerto Rico, and the median U.S Household income. This dataset has two variables: location and median annual household income. 
+```{r, collapse = T}
+n_distinct(medincome2019) 
+nrow(medincome2019) 
+ncol(medincome2019)
+```
+<br>
+The 2019 Prelim ART dataset, `prelimivf2019`, has 448 total and unique rows/observations, representing 448 unique fertility clinics that reported their ART data to the CDC in 2019. This dataset has 140 variables. 
+```{r, collapse = T}
+n_distinct(prelimivf2019) 
+nrow(prelimivf2019) 
+ncol(prelimivf2019)
+```
+<br>
+The locations in the `medincome2019` dataset were replaced by uppercase locations (now named `joinmedincome2019`) to prepare to join with the uppercase clinic locations in the `prelimivf2019` dataset. 
+```{R}
+medincome2019 %>% mutate(location = str_replace(Location, ".+", toupper)) %>% select(location, "Median Annual Household Income") -> joinmedincome2019
+```
+<br>
+All clinic locations in the `prelimivf2019` dataset can be found as locations in the `joinmedincome2019` dataset. 
+<br>
+Four locations in the `joinmedincome2019` dataset are not present in the `prelimivf2019` dataset. The following locations are not listed as the current location of a fertility clinic in the `prelimivf2019` dataset: United States, Alaska, New Hampshire, and Wyoming. 
+```{R, collapse=T}
+anti_join(prelimivf2019, joinmedincome2019, by = c("CurrentClinicState" = "location")) %>% nrow() 
+
+anti_join(joinmedincome2019, prelimivf2019, by = c("location" = "CurrentClinicState")) 
+```
+<br>
+The `prelimivf2019` and `joinmedincome2019` datasets have 49 locations in common, listed below. These 49 location are shared identification variables that will be used to join the datasets together. 
+```{R, collapse=T}
+semi_join(joinmedincome2019, prelimivf2019, by = c("location" = "CurrentClinicState")) %>% nrow() 
+
+prelimivf2019 %>% distinct(CurrentClinicState) %>% semi_join(joinmedincome2019, by = c("CurrentClinicState" = "location")) %>% as.list 
+```
+<br>
+The two datasets were joined using a left join onto the `prelimivf2019` dataset. By doing so, the entire `prelimivf2019` dataset was preserved, and the median annual household incomes of the locations of fertility clinics were added as a new column to the joined dataset, `ivfincome`. A left join was performed because I was only interested in the median incomes of locations that had clinics that reported ART data to the CDC in 2019. 
+<br>
+<br>
+As a result of this left join, the `ivfincome` dataset has the same number of observations as the `prelimivf2019` dataset. 
+```{R, collapse=T}
+left_join(prelimivf2019, joinmedincome2019, by = c("CurrentClinicState" = "location")) -> ivfincome 
+ivfincome %>% nrow() 
+```
+<br>
+The four locations from the `joinmedincome2019` dataset that were not part of the `prelimivf2019` dataset were removed, which is helpful because there is no clinic data for these locations, so these locations would not be helpful when analyzing relationships between clinic location and income. 
+<br>
+
+Wrangling
+=========
+<br>
+The data wrangling below will focus on preparing and analyzing the following variables: 
+
+  (1) the median annual household income of the location of the fertility clinic (`Median Annual Household Income`) <br>
+  (2) a clinic's total number of treatment cycles in 2019 (`TotNumCyclesAll`) <br>
+  (3) a clinic's status as a SART member in 2019 (`SARTmember`) <br>
+  (4) a clinic's percent of embryo transfers that had at least one embryo with Pre-implantation Genetic Testing (`TransPGTAll`)
+
+For simplicity, `CurrentClinicState` was renamed to `state`, and `Median Annual Household Income` was renamed to `medianincome`. 
+<br>
+<br>
+In the `medianincome` column, all dollar signs and commas were removed and the incomes were recoded as integers instead of characters. 
+```{r}
+ivfincome %>% 
+  rename("state" = "CurrentClinicState") %>%
+  rename("medianincome" = "Median Annual Household Income" ) %>%
+  mutate(medianincome = str_replace_all(medianincome, "[$,]*[$,]*","")) %>%
+  mutate(medianincome = as.integer(medianincome)) -> ivfincome
+```
+<br>
+Fertility clinics were placed into groupings based off of their location (usually state, except for D.C. and Puerto Rico). The following summary statistics were calculated for each location: 
+
+  (1) Total treatment cycles performed by all fertility clinics in that location (`totalivfcycles`) <br>
+  (2) Median number of treatment cycles performed by all fertility clinics in that location (`medianivfcycles`) <br>
+  (3) Mean number of treatment cycles performed by all fertility clinics in that location (`meanivfcycles`) <br>
+  (4) Standard deviation of treatment cycles performed by all fertility clinics in that location (`sdivfcycles`) <br>
+
+This information is used later on to visualize the correlation between a location's median income and the mean total number of treatment cycles performed by clinics in that location 2019. 
+```{R, FINISHED1}
+ivfincome %>%
+  mutate_all(function(x)str_remove_all(x, ".*\\*.*")) %>%
+  na_if("") %>%
+  mutate(TotNumCyclesAll = as.integer(TotNumCyclesAll)) %>%
+  group_by(state) %>%
+  summarise("totalivfcycles" = sum(TotNumCyclesAll), 
+            "medianivfcycles" = median(TotNumCyclesAll), 
+            "meanivfcycles" = mean(TotNumCyclesAll), 
+            "sdivfcycles" = sd(TotNumCyclesAll, na.rm=T)) -> summarieslocations
+
+summarieslocations %>%
+  kable(digits = 0,
+        col.names = c("State", "Total", "Median", "Mean", "SD")) %>%
+  kable_material(c("striped", "hover")) %>%
+  add_header_above(c(" " = 1, "Summaries of Total Number of Treatment Cycles" = 4)) %>%
+  scroll_box(height = "300px")
+```
+<br>
+Fertility clinics in California, New York, and Texas performed the most treatment cycles in 2019, respectively, with CA performing 57,491 total treatment cycles, NY performing 51,716 treatment cycles, and TX performing 25,287 treatment cycles. 
+<br>
+Rhode Island, Idaho, and Kentucky performed the least treatment cycles in 2019, with RI performing 862 treatment cycles, ID performing 822 treatment cycles, and KY performing 764 treatment cycles. 
+```{r}
+summarieslocations %>%
+  arrange(-totalivfcycles) %>% 
+  slice(1:3, 37:39) %>%
+  kable(digits = 0,
+        col.names = c("State", "Total", "Median", "Mean", "SD")) %>%
+  kable_material(c("striped", "hover")) %>%
+  add_header_above(c(" " = 1, "Summaries of Total Number of Treatment Cycles" = 4))
+
+  
+```
+<br>
+
+<br>
+A new variable that describes a clinic's total number of transfers with at least one embryo with Pre-implantation Genetic Testing was accomplished by multiplying the total number of embryo transfers that a clinic performed by the percent of transfers with at least one PGT embryo. 
+<br>
+<br>
+The total number of embryo transfers was calculated by adding eight variables together. The first four of these variables begin with `ND_NumTrans` and describe embryo transfers that used a non-donor egg (four variables that each correspond to a patient age group). The other four of these variables begin with `Donor_NumTrans` and describe embryo transfers that used a donor egg (four variables that each correspond to a patient age group). 
+<br>
+<br>
+Some extremely small clinics had asterisks that suppressed data to preserve patient confidentiality. Rows with asterisks were removed for these calculations. Commas were removed from observations that had embryo transfers greater than 999, and afterwards all eight variables were converted from characters to integers. Additionally, the percent symbol was removed from the `TransPGTAll` variable, and it was then also converted from characters to integers. 
+```{r}
+ivfincome %>%
+  mutate(ND_NumTrans1 = na_if(ND_NumTrans1, "*")) %>%
+  mutate(ND_NumTrans2 = na_if(ND_NumTrans2, "*")) %>%
+  mutate(ND_NumTrans3 = na_if(ND_NumTrans3, "*")) %>%
+  mutate(ND_NumTrans4 = na_if(ND_NumTrans4, "*")) %>%
+  mutate(Donor_NumTrans1 = na_if(Donor_NumTrans1, "*")) %>%
+  mutate(Donor_NumTrans2 = na_if(Donor_NumTrans2, "*")) %>%
+  mutate(Donor_NumTrans3 = na_if(Donor_NumTrans3, "*")) %>%
+  mutate(Donor_NumTrans4 = na_if(Donor_NumTrans4, "*")) %>%
+  mutate(ND_NumTrans1 = str_replace_all(ND_NumTrans1, ",", "")) %>%
+  mutate(ND_NumTrans2 = str_replace_all(ND_NumTrans2, ",", "")) %>%
+  mutate(ND_NumTrans3 = str_replace_all(ND_NumTrans3, ",", "")) %>%
+  mutate(ND_NumTrans4 = str_replace_all(ND_NumTrans4, ",", "")) %>%
+  mutate(Donor_NumTrans1 = str_replace_all(Donor_NumTrans1, ",", "")) %>%
+  mutate(Donor_NumTrans2 = str_replace_all(Donor_NumTrans2, ",", "")) %>%
+  mutate(Donor_NumTrans3 = str_replace_all(Donor_NumTrans3, ",", "")) %>%
+  mutate(Donor_NumTrans4 = str_replace_all(Donor_NumTrans4, ",", "")) %>%
+  mutate(ND_NumTrans1 = as.integer(ND_NumTrans1)) %>%
+  mutate(ND_NumTrans2 = as.integer(ND_NumTrans2)) %>%
+  mutate(ND_NumTrans3 = as.integer(ND_NumTrans3)) %>%
+  mutate(ND_NumTrans4 = as.integer(ND_NumTrans4)) %>%
+  mutate(Donor_NumTrans1 = as.integer(Donor_NumTrans1)) %>%
+  mutate(Donor_NumTrans2 = as.integer(Donor_NumTrans2)) %>%
+  mutate(Donor_NumTrans3 = as.integer(Donor_NumTrans3)) %>%
+  mutate(Donor_NumTrans4 = as.integer(Donor_NumTrans4)) %>%
+  mutate(TransPGTAll = na_if(TransPGTAll, "*")) %>%
+  mutate(TransPGTAll = str_replace_all(TransPGTAll, "%", "")) %>%
+  mutate(TransPGTAll = as.integer(TransPGTAll)) -> ivfincome
+```
+<br>
+Each clinic's total number of transfers with at least one PGT embryo (`cyclesatleastonePGT`) was calculated using the `PGTfunction` defined below by multiplying a clinic's total transfers by the percent of those transfers that had at least one PGT embryo. 
+<br>
+<br>
+Clinics were then grouped by location so that the average number of transfers with at least one PGT embryo could be summarized for each location. This information is used later on to visualize the correlation between a location's median income and a location's average number of transfers with at least one PGT embryo. 
+<br>
+```{r}
+PGTfunction <-function(x, y){(x)*(y/100)}
+
+ivfincome %>% 
+  group_by(CurrentClinicName1) %>%
+  mutate("totaltransfers" = sum(Donor_NumTrans1, Donor_NumTrans2, Donor_NumTrans3, Donor_NumTrans4, ND_NumTrans1, ND_NumTrans2, ND_NumTrans3, ND_NumTrans4, na.rm=T)) %>% 
+  mutate("cyclesatleastonePGT" = PGTfunction(totaltransfers, TransPGTAll)) %>% 
+  group_by(state) %>% 
+  mutate("statecycPGT" = mean(cyclesatleastonePGT, na.rm=T)) %>% 
+  distinct(state, .keep_all = T) %>% 
+  select(141, 144) -> statecycPGTdata
+
+statecycPGTdata %>%
+  kable(digits = 0,
+        col.names = c("State", "Median Annual Household Income", "Mean Transfers w/ At Least One PGT Embryo")) %>%
+  kable_material(c("striped", "hover")) %>%
+  scroll_box(height = "300px")
+```
+<br>
+<br>
+A new categorical variable(`USmedian`) describes whether or not a clinic is located in a state that is above or below 2019 U.S. Median Annual Household Income, $65,712. The table below counts the number of clinics in each state and categorizes each clinic by their state (including D.C. and Puerto Rico) and whether the state is above or below the median U.S. income. 
+
+```{r}
+ivfincome %>% 
+  mutate("USmedian" = ifelse(medianincome>65712, "Above Median U.S. Income", "Below Median U.S. Income")) %>%
+  group_by(state, USmedian) %>%
+  summarise(countsclinics = n()) %>%
+  kable(col.names = c("State", "Comparison to \nU.S. Median", "Number of Clinics")) %>%
+  kable_material(c("striped", "hover")) %>%
+  scroll_box(height = "300px")
+
+```
+
+<br>
+231 clinics are located in states with a median income higher than the U.S. median income. Clinics in a state with a median income higher than the median income of the U.S. performed an average of 937 IVF cycles in 2019. 
+<br>
+217 clinics are located in states with a median income lower than the U.S. median income.
+Clinics in a state with a median income higher than the median income of the U.S. performed an average of 526 IVF cycles in 2019.
+```{r, collapse=T}
+ivfincome %>% filter(medianincome > 65712) %>% nrow() 
+ivfincome %>% filter(medianincome > 65712) %>% summarise(meantotalcycles = mean(TotNumCyclesAll)) 
+ivfincome %>% filter(medianincome < 65712) %>% nrow()
+ivfincome %>% filter(medianincome < 65712) %>% summarise(meantotalcycles = mean(TotNumCyclesAll))
+```
+<br>
+
+Tidying: Reshaping
+=======================
+<br>
+The code below reshapes a dataframe so that it can be plotted using `ggplot` aesthetics in the "Visualizing" section below. A `left_join` was performed to merge treatment cycle data and number of transfers with at least one PGT embryo, both grouped by location.   
+`Pivot_longer` was used to create a new column (`datatype`) that holds either treatment cycle data or transfer data for each state, and a second column (`yvalues`) was made to hold the corresponding values for each type of data. This was done to plot both sets of data on the same graph while being able to identify different data by color using `aes(x=medianincome, y = yvalues, col=datatype)` below. 
+<br>
+```{R, FINISHED3}
+ivfincome %>%
+  group_by(state) %>%
+  mutate("Number of Treatment Cycles" = mean(TotNumCyclesAll)) %>%
+  distinct(state, .keep_all = T) -> plotmeancycles
+
+left_join(plotmeancycles, statecycPGTdata) %>% select(5, 141:143) %>% rename("Transfers w/ at least one PGT Embryo" = "statecycPGT") %>% pivot_longer(3:4, names_to = "datatype", values_to = "yvalues") -> combineplot
+```
+<br>
+
+Visualizing
+================
+<br>
+
+```{r}
+combineplot %>%
+  ggplot(aes(x=medianincome, y = yvalues, col=datatype)) + 
+  geom_point(shape=1,size=3.5) + 
+  geom_smooth(method = "lm") +
+  theme_minimal() +
+  theme(plot.title = element_text(size=17, hjust=0.5, margin=margin(15,0,15,0)), 
+        axis.title.x = element_text(margin=margin(15,0,0,0)), 
+        axis.title.y = element_text(margin=margin(0,12,0,0)), 
+        legend.position = "top")+
+  labs(title="Effect of Income on Treatment Cycles & PGT Transfers", 
+       caption = "*D.C. and Puerto Rico are included",
+       col = "Data Type") +
+  scale_x_continuous(name = "Median Annual Household Income of State*", 
+                     labels=scales::dollar_format(), 
+                     breaks = seq(20000,100000, by=10000)) +
+  scale_y_continuous(name = "Means", 
+                     labels=scales::comma, 
+                     breaks = seq(0, 2600, by=200)) +
+  scale_color_manual(values=c("#869E81", "#DBA76B"))
+
+```
+<br>
+The green points above represent the median annual household income of a state (including D.C. and Puerto Rico) and the mean number of treatment cycles that clinics in that state performed in 2019.
+<br>
+There is a moderate positive correlation between the median income of a state and the mean number of treatment cycles that clinics in that state performed (R=0.58).
+<br>
+<br>
+The orange points above represent the median annual household income of a state (including D.C. and Puerto Rico) and the average number of embryo transfers with at least one embryo with genetic testing that clinics in that state performed in 2019.
+<br>
+There is a moderate positive correlation between the median income of a state and the mean number of embryo transfers with at least one embryo with genetic testing (R=0.62). 
+<br>
+<br>
+<br>
+```{R, FINISHED5}
+ivfincome %>%
+  group_by(state) %>%
+  mutate(meanpercentPGT = mean(TransPGTAll, na.rm=T)) %>%
+  distinct(state, .keep_all = T) %>%
+  select(5, 141:142) %>%
+
+  ggplot(aes(x=medianincome, y=meanpercentPGT)) + 
+  geom_point(shape = 1, size=3.5) + 
+  geom_smooth(method = "lm", col="#869E81") +
+  stat_cor(method="pearson") +
+  theme_minimal() +
+  theme(plot.title = element_text(size=14, hjust=0.5, margin=margin(15,0,15,0)), 
+        axis.title.x = element_text(margin=margin(15,0,0,0)), 
+        axis.title.y = element_text(margin=margin(0,12,0,0)),)+
+  labs(title="Effect of Income on Percent Transfers w/ at least one PGT Embryo", 
+       caption = "*D.C. and Puerto Rico are included") +
+  scale_x_continuous(name = "Median Annual Household Income of State*", 
+                     labels=scales::dollar_format(), 
+                     breaks = seq(20000,100000, by=10000)) +
+  scale_y_continuous(name = "Mean Transfers \nw/ at least one PGT Embryo (%)", 
+                     labels=scales::comma, 
+                     breaks = seq(0, 100, by=10))
+```
+<br>
+The plot above represents the median annual household income of a state (including D.C. and Puerto Rico) and the average percent of embryo transfers with at least one embryo with genetic testing that clinics in that state performed in 2019.
+<br>
+There is a weak positive correlation between the median income of a state and the mean number of embryo transfers with at least one embryo with genetic testing (R=0.26, p=0.07). 
+<br>
+<br>
+<br>
+```{R}
+ivfincome %>% 
+  group_by(state) %>%
+  mutate("meanivfcycles" = mean(TotNumCyclesAll)) %>%
+  mutate("USmedian" = ifelse(medianincome>65712, "Above Median U.S. Income", "Below Median U.S. Income")) %>% 
+  
+  ggplot(aes(x = USmedian, y = meanivfcycles, fill=USmedian))+
+  geom_bar(stat="summary",fun=mean, width=0.6)+
+  geom_errorbar(stat="summary", fun.data=mean_se, width = 0.3) +
+  theme_minimal() +
+  theme(plot.title = element_text(size=15, hjust=0.5, margin=margin(15,0,15,0)), 
+        axis.title.x = element_text(margin=margin(15,0,0,0)), 
+        axis.title.y = element_text(margin=margin(0,12,0,0)),
+        legend.position = "none") +
+  labs(title="Treatment Cycles Relative to Median U.S. Income ($65,712)", 
+       caption = "*D.C. and Puerto Rico are included") + 
+  xlab(" ") +
+  scale_y_continuous(name = "Average Number of Treatment Cycles", 
+                     labels=scales::comma, 
+                     breaks = seq(0, 1000, by=100)) +
+  scale_fill_manual(values=c("#869E81", "#BD5E4B"))
+```
+<br>
+The figure above represents the average number of treatment cycles performed by clinics in states (including D.C. and Puerto Rico) that are above and below the median U.S. income of 2019 ($65,712). Clinics in states above the U.S. median income performed a significantly larger amount of treatment cycles than clinics in states below the U.S. median income. 
+<br>
+Even though there are similar numbers of clinics in locations above and below the U.S. median income (231 and 217, respectively), clinics in a location above the U.S. median income performed almost twice the number of treatment cycles on average (937 cycles, versus 526 cycles). 
+<br>
+<br>
+<br>
+```{r, fig.asp = .92}
+ivfincome %>%
+ group_by(state) %>%
+ mutate("meanivfcycles" = mean(TotNumCyclesAll)) -> medivfincome  
+
+ plot_usmap(data = medivfincome, values = "meanivfcycles", regions = "states", col="grey") +
+   labs(title = " ", 
+        caption="Alaska, New Hampshire, and Wyoming did not report any treatment cycles in 2019 (shown as grey).") +
+   scale_fill_gradient2(low = "#9C2710",
+                          mid = "white",
+                        midpoint = 526,
+                         high = "#869E81", 
+                         name = "Mean Treatment Cycles", label = scales::comma) + 
+   theme(legend.position = "right", 
+         plot.title = element_text(hjust = 0.5, size=15),
+         plot.caption = element_text(hjust = 0.5)) -> map1
+ 
+ivfincome %>% 
+  mutate("USmedian" = ifelse(medianincome>65712, "Above Median U.S. Income", "Below Median U.S. Income")) %>%
+  group_by(state, USmedian) -> plotUSmedian
+plot_usmap(data = plotUSmedian, values = "USmedian", regions = "states", col="grey") +
+   labs(title = " ", 
+        caption="Alaska, New Hampshire, and Wyoming did not report any treatment cycles in 2019 (shown as white).") +
+  theme(legend.position = "right", 
+        plot.title = element_text(hjust = 0.5, size=15), 
+        legend.title = element_text("Relation to U.S. Median Income"),
+        plot.caption = element_text(hjust = 0.5)) +
+  scale_fill_manual(values=c("#869E81", "#BD5E4B"), name = "U.S. Median Income") -> map2
+
+grid.arrange(map1, map2, ncol=1)
+
+```
+
+subtitle = "This map shows the mean number of IVF cycles that clinics in that state performed in 2019.", 
+subtitle = "This map cateogrizes states as being above or below the median U.S. income in 2019 ($65,712).", 
+
+<br>
+
+Concluding Remarks
+==================
+<br>
+If any!
+wealth disparity! infertility should be covered under insurance! 
+
+
+
+
